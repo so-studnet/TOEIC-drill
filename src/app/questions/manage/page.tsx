@@ -18,7 +18,7 @@ export default async function QuestionsManagePage() {
 
       <section className="rounded-lg border border-neutral-200 bg-white p-4">
         <h2 className="mb-2 font-semibold">登録済み問題数</h2>
-        <ul className="flex gap-6 text-sm">
+        <ul className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <li>Part5: {partCountMap.get(5) ?? 0}問</li>
           <li>Part6: {partCountMap.get(6) ?? 0}問</li>
           <li>Part7: {partCountMap.get(7) ?? 0}問</li>
@@ -26,7 +26,7 @@ export default async function QuestionsManagePage() {
         </ul>
         <Link
           href="/questions"
-          className="mt-4 inline-block rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-100"
+          className="mt-4 block w-full rounded-md border border-neutral-300 bg-white px-4 py-3 text-center text-sm font-medium hover:bg-neutral-100 sm:inline-block sm:w-fit sm:py-2 sm:text-left"
         >
           問題一覧を見る
         </Link>

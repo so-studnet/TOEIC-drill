@@ -23,7 +23,7 @@ export function UploadForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="w-fit rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 sm:w-fit sm:py-2"
       >
         {isPending ? "アップロード中..." : "アップロード"}
       </button>

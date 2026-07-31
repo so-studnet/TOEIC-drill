@@ -42,13 +42,17 @@ export default async function QuizSetupPage() {
             {[5, 6, 7].map((part) => {
               const count = partCountMap.get(part) ?? 0;
               return (
-                <label key={part} className="flex items-center gap-2 text-sm">
+                <label
+                  key={part}
+                  className="flex items-center gap-3 rounded-md border border-neutral-200 bg-white px-3 py-3 text-sm"
+                >
                   <input
                     type="checkbox"
                     name="parts"
                     value={part}
                     defaultChecked
                     disabled={count === 0}
+                    className="h-5 w-5"
                   />
                   Part{part}({count}問)
                 </label>
@@ -57,7 +61,7 @@ export default async function QuizSetupPage() {
           </fieldset>
           <button
             type="submit"
-            className="w-fit rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 sm:w-fit sm:py-2"
           >
             出題開始
           </button>

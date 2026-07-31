@@ -47,30 +47,30 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      <section className="flex flex-wrap gap-3">
+      <section className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap">
         {inProgressSession && (
           <Link
             href={`/quiz/play?session=${inProgressSession.id}`}
-            className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+            className="rounded-md bg-amber-600 px-4 py-3 text-center text-sm font-medium text-white hover:bg-amber-700 sm:py-2 sm:text-left"
           >
             続きから再開する
           </Link>
         )}
         <Link
           href="/quiz/setup"
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-md bg-blue-600 px-4 py-3 text-center text-sm font-medium text-white hover:bg-blue-700 sm:py-2 sm:text-left"
         >
           出題を始める
         </Link>
         <Link
           href="/bookmarks"
-          className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-100"
+          className="rounded-md border border-neutral-300 bg-white px-4 py-3 text-center text-sm font-medium hover:bg-neutral-100 sm:py-2 sm:text-left"
         >
           ブックマーク復習
         </Link>
         <Link
           href="/questions/manage"
-          className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-100"
+          className="rounded-md border border-neutral-300 bg-white px-4 py-3 text-center text-sm font-medium hover:bg-neutral-100 sm:py-2 sm:text-left"
         >
           問題データ管理
         </Link>

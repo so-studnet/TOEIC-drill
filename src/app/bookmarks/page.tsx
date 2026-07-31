@@ -20,7 +20,7 @@ export default async function BookmarksPage() {
           <form action={startBookmarkReviewSessionAction}>
             <button
               type="submit"
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 sm:w-fit sm:py-2"
             >
               復習を始める({bookmarks.length}問)
             </button>

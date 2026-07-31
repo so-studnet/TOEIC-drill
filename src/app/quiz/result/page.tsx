@@ -27,16 +27,16 @@ export default async function QuizResultPage({
         <p className="mt-1 text-sm text-neutral-600">誤答: {summary.incorrectCount}問</p>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap">
         <Link
           href="/quiz/setup"
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-md bg-blue-600 px-4 py-3 text-center text-sm font-medium text-white hover:bg-blue-700 sm:py-2 sm:text-left"
         >
           もう一度出題する
         </Link>
         <Link
           href="/"
-          className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-100"
+          className="rounded-md border border-neutral-300 bg-white px-4 py-3 text-center text-sm font-medium hover:bg-neutral-100 sm:py-2 sm:text-left"
         >
           ダッシュボードへ
         </Link>

@@ -20,7 +20,7 @@ export function DeleteQuestionButton({ questionId }: { questionId: string }) {
     <button
       onClick={handleClick}
       disabled={isPending}
-      className="text-sm text-red-600 underline hover:text-red-800 disabled:opacity-50"
+      className="py-1 text-sm text-red-600 underline hover:text-red-800 disabled:opacity-50"
     >
       削除
     </button>
@@ -43,7 +43,7 @@ export function DeletePartButton({ part, count }: { part: number; count: number 
     <button
       onClick={handleClick}
       disabled={isPending || count === 0}
-      className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+      className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
     >
       Part{part}を一括削除({count}問)
     </button>

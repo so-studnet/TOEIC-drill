@@ -92,14 +92,14 @@ export function QuizPlayer({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-base font-semibold sm:text-lg">
           Part{question.part} 第{index + 1}問 / 全{total}問
         </h1>
         <button
           onClick={handleAbandon}
           disabled={isPending}
-          className="text-sm text-neutral-500 underline hover:text-neutral-800"
+          className="shrink-0 py-2 text-sm text-neutral-500 underline hover:text-neutral-800"
         >
           中断する
         </button>
@@ -124,7 +124,7 @@ export function QuizPlayer({
               onClick={() => handleSelect(key)}
               disabled={!!result || isPending}
               className={[
-                "rounded-md border px-4 py-2 text-left text-sm transition-colors",
+                "min-h-11 rounded-md border px-4 py-3 text-left text-sm transition-colors active:bg-neutral-100",
                 isCorrectChoice
                   ? "border-green-500 bg-green-50"
                   : isWrongSelected
@@ -149,7 +149,7 @@ export function QuizPlayer({
           <button
             onClick={handleNext}
             disabled={isPending}
-            className="w-fit rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 sm:w-fit"
           >
             次へ
           </button>
