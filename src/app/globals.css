@@ -24,3 +24,13 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Avoid the browser treating a tap as an ambiguous scroll/zoom gesture,
+   which can eat the first tap on real touchscreens (not reproducible
+   with synthetic taps in headless testing). */
+a,
+button,
+input[type="checkbox"],
+input[type="file"] {
+  touch-action: manipulation;
+}
