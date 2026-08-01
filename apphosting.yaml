@@ -1,0 +1,20 @@
+# Firebase App Hosting configuration
+# https://firebase.google.com/docs/app-hosting/configure
+
+runConfig:
+  minInstances: 0
+  maxInstances: 1
+
+scripts:
+  buildCommand: npm install && npx prisma generate && npm run build
+  runCommand: npm start
+
+env:
+  - variable: DATABASE_URL
+    value: file:./dev.db
+    availability:
+      - RUNTIME
+  - variable: SEED_ON_BOOT
+    value: "true"
+    availability:
+      - RUNTIME

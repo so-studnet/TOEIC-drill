@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node scripts/render-seed.js && next start",
+    "start": "node scripts/seed-on-boot.js && next start",
     "lint": "eslint"
   },
   "dependencies": {
