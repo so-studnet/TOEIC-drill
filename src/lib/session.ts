@@ -1,4 +1,8 @@
-import { db } from "@/lib/db";
+import { get, push, ref, set, update } from "firebase/database";
+import { db } from "@/lib/firebase";
+import { getAllQuestions, getQuestionById } from "@/lib/questions";
+import { addBookmark, getAllBookmarkQuestionIds, removeBookmark } from "@/lib/bookmarks";
+import type { QuizSession, SessionStatus } from "@/lib/types";
 
 function shuffle<T>(items: T[]): T[] {
   const result = [...items];
@@ -9,81 +13,86 @@ function shuffle<T>(items: T[]): T[] {
   return result;
 }
 
-export async function getInProgressSession() {
-  return db.session.findFirst({
-    where: { status: "in_progress" },
-    orderBy: { updatedAt: "desc" },
-  });
+export async function getInProgressSession(): Promise<QuizSession | null> {
+  const snap = await get(ref(db, "sessions"));
+  if (!snap.exists()) return null;
+  const val = snap.val() as Record<string, Omit<QuizSession, "id">>;
+  const inProgress = Object.entries(val)
+    .map(([id, s]) => ({ id, ...s }))
+    .filter((s) => s.status === "in_progress")
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  return inProgress[0] ?? null;
 }
 
-export async function startNormalSession(parts: number[]) {
-  const questions = await db.question.findMany({
-    where: { part: { in: parts } },
-    select: { id: true },
-  });
-  const order = shuffle(questions.map((q) => q.id));
-  return db.session.create({
-    data: {
-      mode: "normal",
-      selectedParts: JSON.stringify(parts),
-      questionOrder: JSON.stringify(order),
-      currentIndex: 0,
-      status: "in_progress",
-    },
-  });
+export async function startNormalSession(parts: number[]): Promise<QuizSession> {
+  const questions = await getAllQuestions();
+  const order = shuffle(questions.filter((q) => parts.includes(q.part)).map((q) => q.id));
+  const newRef = push(ref(db, "sessions"));
+  const id = newRef.key as string;
+  const now = Date.now();
+  const session: Omit<QuizSession, "id"> = {
+    mode: "normal",
+    selectedParts: parts,
+    questionOrder: order,
+    currentIndex: 0,
+    status: "in_progress",
+    createdAt: now,
+    updatedAt: now,
+  };
+  await set(newRef, session);
+  return { id, ...session };
 }
 
-export async function startBookmarkReviewSession() {
-  const bookmarks = await db.bookmark.findMany({
-    select: { questionId: true },
-  });
-  const order = shuffle(bookmarks.map((b) => b.questionId));
-  return db.session.create({
-    data: {
-      mode: "bookmark_review",
-      selectedParts: JSON.stringify([]),
-      questionOrder: JSON.stringify(order),
-      currentIndex: 0,
-      status: "in_progress",
-    },
-  });
+export async function startBookmarkReviewSession(): Promise<QuizSession> {
+  const order = shuffle(await getAllBookmarkQuestionIds());
+  const newRef = push(ref(db, "sessions"));
+  const id = newRef.key as string;
+  const now = Date.now();
+  const session: Omit<QuizSession, "id"> = {
+    mode: "bookmark_review",
+    selectedParts: [],
+    questionOrder: order,
+    currentIndex: 0,
+    status: "in_progress",
+    createdAt: now,
+    updatedAt: now,
+  };
+  await set(newRef, session);
+  return { id, ...session };
 }
 
-export async function getSessionById(sessionId: string) {
-  return db.session.findUniqueOrThrow({ where: { id: sessionId } });
+export async function getSessionById(sessionId: string): Promise<QuizSession> {
+  const snap = await get(ref(db, `sessions/${sessionId}`));
+  if (!snap.exists()) throw new Error("session not found");
+  return { id: sessionId, ...(snap.val() as Omit<QuizSession, "id">) };
 }
 
 export async function getCurrentQuestion(sessionId: string) {
   const session = await getSessionById(sessionId);
-  const order: string[] = JSON.parse(session.questionOrder);
-  if (session.currentIndex >= order.length) return null;
-  const questionId = order[session.currentIndex];
-  const question = await db.question.findUnique({
-    where: { id: questionId },
-    include: { passage: true },
-  });
-  return question;
+  if (session.currentIndex >= session.questionOrder.length) return null;
+  const questionId = session.questionOrder[session.currentIndex];
+  return getQuestionById(questionId);
 }
 
 export async function submitAnswer(sessionId: string, selectedAnswer: string) {
   const session = await getSessionById(sessionId);
-  const order: string[] = JSON.parse(session.questionOrder);
-  const questionId = order[session.currentIndex];
-  const question = await db.question.findUniqueOrThrow({ where: { id: questionId } });
+  const questionId = session.questionOrder[session.currentIndex];
+  const question = await getQuestionById(questionId);
+  if (!question) throw new Error("question not found");
   const isCorrect = selectedAnswer === question.correctAnswer;
 
-  await db.answerLog.create({
-    data: { questionId, sessionId, isCorrect },
+  const logRef = push(ref(db, "answerLogs"));
+  await set(logRef, {
+    questionId,
+    sessionId,
+    isCorrect,
+    answeredAt: Date.now(),
   });
 
   if (isCorrect) {
-    await db.bookmark.deleteMany({ where: { questionId } });
+    await removeBookmark(questionId);
   } else {
-    await db.bookmark.upsert({
-      where: { questionId },
-      update: {},
-      create: { questionId },
-    });
+    await addBookmark(questionId);
   }
 
   return {
@@ -93,28 +102,25 @@ export async function submitAnswer(sessionId: string, selectedAnswer: string) {
   };
 }
 
-export async function advanceSession(sessionId: string) {
+export async function advanceSession(sessionId: string): Promise<QuizSession> {
   const session = await getSessionById(sessionId);
-  const order: string[] = JSON.parse(session.questionOrder);
   const nextIndex = session.currentIndex + 1;
-  const status = nextIndex >= order.length ? "completed" : "in_progress";
-  return db.session.update({
-    where: { id: sessionId },
-    data: { currentIndex: nextIndex, status },
-  });
+  const status: SessionStatus = nextIndex >= session.questionOrder.length ? "completed" : "in_progress";
+  const patch = { currentIndex: nextIndex, status, updatedAt: Date.now() };
+  await update(ref(db, `sessions/${sessionId}`), patch);
+  return { ...session, ...patch };
 }
 
-export async function abandonSession(sessionId: string) {
-  return db.session.update({
-    where: { id: sessionId },
-    data: { status: "abandoned" },
-  });
+export async function abandonSession(sessionId: string): Promise<void> {
+  await update(ref(db, `sessions/${sessionId}`), { status: "abandoned", updatedAt: Date.now() });
 }
 
 export async function getSessionSummary(sessionId: string) {
-  const [correctCount, totalCount] = await Promise.all([
-    db.answerLog.count({ where: { sessionId, isCorrect: true } }),
-    db.answerLog.count({ where: { sessionId } }),
-  ]);
-  return { correctCount, incorrectCount: totalCount - correctCount, totalCount };
+  const snap = await get(ref(db, "answerLogs"));
+  if (!snap.exists()) return { correctCount: 0, incorrectCount: 0, totalCount: 0 };
+  const logs = Object.values(
+    snap.val() as Record<string, { sessionId: string | null; isCorrect: boolean }>
+  ).filter((l) => l.sessionId === sessionId);
+  const correctCount = logs.filter((l) => l.isCorrect).length;
+  return { correctCount, incorrectCount: logs.length - correctCount, totalCount: logs.length };
 }

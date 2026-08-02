@@ -1,7 +1,8 @@
 # TOEIC-drill 詳細設計書(内部設計)
 
-- 文書ステータス: ドラフト(ユーザー確認待ち)
+- 文書ステータス: 確定
 - 作成日: 2026-07-31
+- 更新日: 2026-08-02(データベース設計をPrisma+SQLiteからFirebase Realtime Databaseに全面変更)
 - 前提: [01_requirements.md](./01_requirements.md) / [02_basic_design.md](./02_basic_design.md) の内容に基づく
 
 ## 1. 問題データCSVファイル仕様
@@ -51,133 +52,84 @@ part,passage_id,passage_text,question_text,choice_a,choice_b,choice_c,choice_d,c
 6. 同じ `passage_id` を持つ行同士は `passage_text` が一致していること(不一致の場合はエラーとし、行番号を提示する)
 7. ファイル内に1件でもエラー行があった場合、ファイル全体を登録しない(1行も登録せず、全件ロールバックする)。画面にはエラーがあった行番号と理由を一覧表示し、ユーザーがファイルを修正して再アップロードする
 
-## 2. データベース設計
+## 2. データベース設計(Firebase Realtime Database)
 
-### 2.1 ER図
+Realtime DatabaseはJSONツリー1本の構造で、テーブル間の外部キー制約やトランザクション境界はPrismaのようには存在しない。ルート直下に4つのコレクション(トップレベルキー)を持つ。
 
-```mermaid
-erDiagram
-    Passage ||--o{ Question : "1つの長文に複数の設問"
-    Question ||--o{ AnswerLog : "解答履歴"
-    Question ||--o| Bookmark : "ブックマーク"
-    Session ||--o{ AnswerLog : "セッション内の解答"
+### 2.1 キー構造
 
-    Passage {
-        string id PK
-        int part
-        string text
-        datetime createdAt
-    }
-    Question {
-        string id PK
-        int part
-        string passageId FK
-        string questionText
-        string choiceA
-        string choiceB
-        string choiceC
-        string choiceD
-        string correctAnswer
-        string explanation
-        datetime createdAt
-    }
-    AnswerLog {
-        string id PK
-        string questionId FK
-        string sessionId FK
-        boolean isCorrect
-        datetime answeredAt
-    }
-    Bookmark {
-        string id PK
-        string questionId FK
-        datetime createdAt
-    }
-    Session {
-        string id PK
-        string mode
-        string selectedParts
-        string questionOrder
-        int currentIndex
-        string status
-        datetime createdAt
-        datetime updatedAt
-    }
+```
+/passages/{passageId}
+  part: number
+  text: string
+
+/questions/{questionId}
+  part: number                       // 5 | 6 | 7
+  passageId: string | null           // Part6/7のみ。/passages/{passageId} への参照
+  questionText: string
+  choiceA: string
+  choiceB: string
+  choiceC: string
+  choiceD: string
+  correctAnswer: "A" | "B" | "C" | "D"
+  explanation: string | null
+  createdAt: number                  // epoch ms
+
+/bookmarks/{questionId}              // キー自体が問題IDなので1問1件に自然と一意化される
+  createdAt: number
+
+/sessions/{sessionId}
+  mode: "normal" | "bookmark_review"
+  selectedParts: number[]
+  questionOrder: string[]            // 出題順の問題ID配列(ネイティブ配列。JSON文字列化は不要)
+  currentIndex: number
+  status: "in_progress" | "completed" | "abandoned"
+  createdAt: number
+  updatedAt: number
+
+/answerLogs/{logId}
+  questionId: string
+  sessionId: string | null
+  isCorrect: boolean
+  answeredAt: number
 ```
 
-### 2.2 Prismaスキーマ(実装イメージ)
+- 各`{xxxId}`はFirebaseの`push()`が生成する一意キー(時系列でソート可能)
+- `Passage`はPart6/7で複数の`Question`が共有するため独立コレクションとして残す。Part5の`Question`は`passageId: null`
+- `Bookmark`はProduction上「不正解になった問題」を表す。復習セッションで正解すると該当キーを削除する。キーを`questionId`そのものにしているため「1問につき最大1ブックマーク」が自然に保証される
+- `questionOrder`・`selectedParts`はPrisma版ではJSON文字列としてTEXT列に保存していたが、RTDBはネイティブに配列を保存できるため文字列化・パースが不要になった
 
-```prisma
-model Passage {
-  id        String     @id @default(cuid())
-  part      Int
-  text      String
-  createdAt DateTime   @default(now())
-  questions Question[]
-}
+### 2.2 集計・絞り込みの方針
 
-model Question {
-  id            String      @id @default(cuid())
-  part          Int
-  passageId     String?
-  passage       Passage?    @relation(fields: [passageId], references: [id])
-  questionText  String
-  choiceA       String
-  choiceB       String
-  choiceC       String
-  choiceD       String
-  correctAnswer String
-  explanation   String?
-  createdAt     DateTime    @default(now())
-  answerLogs    AnswerLog[]
-  bookmark      Bookmark?
-}
+RTDBには`GROUP BY`や`JOIN`に相当する機能がなく、複雑なインデックスクエリも個人利用規模(問題数百件程度)では不要と判断し、**該当コレクションを丸ごと取得してアプリ側(Node.js)で集計・フィルタする**方針とする(`src/lib/questions.ts`・`src/lib/stats.ts`)。
 
-model AnswerLog {
-  id         String   @id @default(cuid())
-  questionId String
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  sessionId  String?
-  session    Session? @relation(fields: [sessionId], references: [id])
-  isCorrect  Boolean
-  answeredAt DateTime @default(now())
-}
+- Part別問題数・出題対象の絞り込み: `/questions`を全件取得し`part`でフィルタ
+- ダッシュボード集計: `/answerLogs`・`/bookmarks`を全件取得し件数・正答率を計算
+- カスケード削除(問題削除時の関連ブックマーク・解答履歴・孤立した長文の削除): 削除対象を洗い出した上で、複数パスをまとめた1回の`update()`呼び出しで原子的に反映する(Firebase RTDBの複数パス更新はアトミック)
 
-model Bookmark {
-  id         String   @id @default(cuid())
-  questionId String   @unique
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-}
+### 2.3 認証・アクセス制御
 
-model Session {
-  id            String      @id @default(cuid())
-  mode          String      // "normal" | "bookmark_review"
-  selectedParts String      // 例: "[5,6]" (JSON文字列)
-  questionOrder String      // 出題順の問題ID配列 (JSON文字列)
-  currentIndex  Int         @default(0)
-  status        String      // "in_progress" | "completed" | "abandoned"
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  answerLogs    AnswerLog[]
+サーバー側(Server Actions/Server Components)からFirebase JS SDKで直接読み書きする。セキュリティルールは以下の通り全公開とし、サービスアカウント等の認証情報は使わない(個人利用アプリのため)。
+
+```json
+{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
 }
 ```
-
-補足:
-- `Bookmark` は「不正解になった問題」を表す。復習セッションで正解すると該当レコードを削除する
-- `Session.questionOrder` に出題順(問題IDの配列)をJSON文字列として保持することで、ランダム出題の順序を固定し「続きから再開」を実現する
-- `Session.currentIndex` が現在の出題位置。中断時はこの値を保存し、再開時に同じ位置から再開する
 
 ## 3. 問題データの編集・削除仕様
 
 ### 3.1 編集(S-08 問題編集画面)
-- `Question` の全項目(`part`・`questionText`・`choiceA`〜`choiceD`・`correctAnswer`・`explanation`)を編集可能とする
-- `passageText`(長文)を編集した場合は、紐づく `Passage` レコードを更新する。これにより同じ `passageId` を共有する他の設問にも変更が反映される(長文は`Passage`テーブルで一元管理しているため、二重管理にならない)
-- `part` を変更する場合、Part5⇔Part6/7間の変更は長文(`passageId`)の有無が変わるため、UIで警告を出す(例: Part5からPart7に変更する場合は長文の入力を必須にする)
+- `Question`の全項目(`part`・`questionText`・`choiceA`〜`choiceD`・`correctAnswer`・`explanation`)を編集可能とする
+- `passageText`(長文)を編集した場合は、紐づく`/passages/{passageId}`を更新する。これにより同じ`passageId`を共有する他の設問にも変更が反映される
+- `part`をPart5に変更した場合は`passageId`を`null`にし、それまで参照していた`Passage`が他の`Question`から参照されていなければ削除する
 
 ### 3.2 削除(S-07 問題一覧画面)
-- **個別削除**: 対象の `Question` を削除する。`AnswerLog`・`Bookmark` は `onDelete: Cascade` により連動して削除される。紐づく `Passage` は、他に参照している `Question` が存在しなければあわせて削除し、存在すれば残す
-- **Part単位一括削除**: 指定した `part` に属するすべての `Question` を削除する(個別削除と同じ連動削除ルールを一括適用)。実行前に確認ダイアログで対象件数を表示する
+- **個別削除**: 対象の`Question`、および紐づく`/bookmarks/{questionId}`・関連する`/answerLogs`エントリを1回の多重パス更新で削除する。紐づく`Passage`は、他に参照している`Question`が存在しなければあわせて削除し、存在すれば残す
+- **Part単位一括削除**: 指定した`part`に属するすべての`Question`を対象に、個別削除と同じ連動削除ルールを一括適用する。実行前に確認ダイアログで対象件数を表示する
 - 削除は取り消せないため、実行前に必ず確認ダイアログを表示する
 
 ## 4. ダッシュボード表示項目の算出ロジック
@@ -196,8 +148,7 @@ model Session {
 ```
 toeic-drill/
 ├─ docs/                      # ウォーターフォール各工程のドキュメント
-├─ prisma/
-│  └─ schema.prisma
+├─ apphosting.yaml            # Firebase App Hostingの設定
 ├─ src/
 │  ├─ app/
 │  │  ├─ page.tsx             # S-01 ダッシュボード
@@ -210,12 +161,14 @@ toeic-drill/
 │  │     ├─ manage/page.tsx   # S-06 問題データ管理
 │  │     ├─ page.tsx          # S-07 問題一覧
 │  │     └─ [id]/edit/page.tsx  # S-08 問題編集
-│  ├─ components/             # UIコンポーネント
 │  ├─ lib/
-│  │  ├─ db.ts                # Prisma Clientの初期化
-│  │  ├─ csv-import.ts        # CSVパース・バリデーション
-│  │  └─ session.ts           # 出題セッションのロジック
-│  └─ types/
+│  │  ├─ firebase.ts          # Firebase App/Databaseの初期化
+│  │  ├─ types.ts             # Question/Passage/Session等の型定義
+│  │  ├─ questions.ts         # 問題・長文の読み書き(CRUD)
+│  │  ├─ bookmarks.ts         # ブックマークの読み書き
+│  │  ├─ session.ts           # 出題セッションのロジック
+│  │  ├─ stats.ts             # ダッシュボード集計
+│  │  └─ csv-import.ts        # CSVパース・バリデーション・登録
 ├─ package.json
 └─ tsconfig.json
 ```

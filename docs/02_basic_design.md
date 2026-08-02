@@ -1,32 +1,34 @@
 # TOEIC-drill 基本設計書(外部設計)
 
-- 文書ステータス: ドラフト(ユーザー確認待ち)
+- 文書ステータス: 確定
 - 作成日: 2026-07-31
+- 更新日: 2026-08-02(データベースをSQLite+PrismaからFirebase Realtime Databaseに変更。既存のFirebaseアカウント・Web公開を見据えた変更)
 - 前提: [01_requirements.md](./01_requirements.md) の内容に基づく
 
 ## 1. 技術スタック
 
 | 区分 | 採用技術 | 理由 |
 |---|---|---|
-| フロントエンド/バックエンド | Next.js(App Router) + TypeScript | 1つのプロジェクトでUIとAPI(Server Actions)を完結できる。将来のWeb公開(Vercel等)にも移行しやすい |
-| ORM | Prisma | スキーマ管理・マイグレーションが容易。SQLite→Postgres等への移行もしやすい |
-| データベース | SQLite(ファイルベース) | MVPはローカル利用のため導入が簡単。将来Web公開時にPostgres等へ移行 |
+| フロントエンド/バックエンド | Next.js(App Router) + TypeScript | 1つのプロジェクトでUIとAPI(Server Actions)を完結できる |
+| データベース | Firebase Realtime Database | 既存のFirebaseアカウントをそのまま利用できる。外部に永続化されるため、Web公開先(Cloud Run等)のステートレスなファイルシステムに影響されない |
+| DBアクセス | Firebase JS SDK(`firebase/database`) | サーバー側(Server Actions/Server Components)から直接呼び出す。認証は行わず、セキュリティルールを全公開にして鍵なしで接続する(個人利用のため) |
 | スタイリング | Tailwind CSS | 学習コストが低く、実装が速い |
 | 対応デバイス | PCブラウザ + スマートフォン(レスポンシブ・タッチ対応) | 外出先でも学習できるよう対応(2026-07-31変更。当初はPC専用) |
+| デプロイ先 | Firebase App Hosting | 既存のFirebaseアカウントを利用([04_deployment.md](./04_deployment.md)参照) |
 
 ## 2. システム構成
 
 ```mermaid
 flowchart LR
     User[利用者(ブラウザ)] --> UI[Next.js フロントエンド]
-    UI --> API[Next.js Server Actions / API Routes]
-    API --> ORM[Prisma ORM]
-    ORM --> DB[(SQLite\nローカルファイル)]
+    UI --> API[Next.js Server Actions / Server Components]
+    API --> SDK[Firebase JS SDK]
+    SDK --> RTDB[(Firebase\nRealtime Database)]
 ```
 
-- MVPでは単一プロセスのNext.jsアプリとしてローカルで起動(`npm run dev` 等)
-- 問題データ・解答履歴・ブックマークはすべてSQLiteファイルに永続化し、アプリ再起動後も保持される
-- 将来のWeb公開時は、DBをPostgres等のホスティングDBに切り替え、Next.jsアプリをVercel等にデプロイする想定(コード構成はこの移行を阻害しないようにする)
+- Next.jsのServer Actions/Server ComponentsからFirebase JS SDKを使い、Realtime Databaseに直接読み書きする
+- 問題データ・解答履歴・ブックマークはすべてRealtime Databaseに永続化されるため、アプリのホスト環境(ローカル/Cloud Run等)がステートレスであっても消えない
+- セキュリティルールは`.read: true, .write: true`(全公開)。個人利用アプリのため認証機構は設けない
 
 ## 3. 画面一覧
 
@@ -90,9 +92,10 @@ flowchart TD
 
 ## 6. データモデル概要(概念レベル)
 
-詳細なテーブル定義・型・制約は次工程「詳細設計」で確定する。ここでは扱うデータの概念のみ整理する。
+Realtime DatabaseはJSONツリー構造のため、Prisma時代のようなテーブル間の外部キー制約はない。詳細なキー構造は[03_detailed_design.md](./03_detailed_design.md)を参照。
 
 - **Question(問題)**: Part、問題文、選択肢群、正解、解説(任意)を持つ
+- **Passage(長文)**: Part6/7で複数のQuestionが共有する長文
 - **AnswerLog(解答履歴)**: どの問題に、いつ、正解したか不正解だったかを記録する
 - **Bookmark(ブックマーク)**: 誤答した問題への参照。復習で正解すると解除される
 - **Session(出題セッション)**: 選択したPart、出題順、現在の進捗位置、状態(進行中/完了)を保持し、「続きから出題」を実現する
@@ -101,11 +104,4 @@ flowchart TD
 
 - PCブラウザ(最新のChrome/Edge等)およびスマートフォンのブラウザ(iOS Safari/Android Chrome等)での動作を前提とし、レスポンシブ・タッチ操作に対応する
 - 画面デザインは実用性を優先したシンプルなUIとする(装飾的なデザインは行わない)
-- データはすべてローカルのSQLiteファイルに保存し、アプリ外部へは送信しない
-
-## 8. 未確定事項(次工程で扱う)
-
-- 問題データファイルの詳細形式(拡張子・列構成・文字コード・バリデーションルール)
-- DBの詳細スキーマ(テーブル定義・カラム型・インデックス・制約)
-- ダッシュボードで表示する具体的な数値項目の算出ロジック
-- ディレクトリ構成・コンポーネント構成などの内部設計
+- データはFirebase Realtime Databaseに保存する。セキュリティルールを全公開にしているため、URLを知っている第三者が理論上読み書き可能である点は許容する(個人の学習用問題データ以外の機微情報は扱わない前提)

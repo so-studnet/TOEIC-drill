@@ -1,13 +1,17 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
+import { getAllQuestions, getQuestionCountsByPart } from "@/lib/questions";
 import { DeleteQuestionButton, DeletePartButton } from "./DeleteButtons";
 
+export const dynamic = "force-dynamic";
+
 export default async function QuestionListPage() {
-  const [questions, questionCounts] = await Promise.all([
-    db.question.findMany({ orderBy: [{ part: "asc" }, { createdAt: "asc" }] }),
-    db.question.groupBy({ by: ["part"], _count: { _all: true } }),
+  const [allQuestions, partCountMap] = await Promise.all([
+    getAllQuestions(),
+    getQuestionCountsByPart(),
   ]);
-  const partCountMap = new Map(questionCounts.map((c) => [c.part, c._count._all]));
+  const questions = [...allQuestions].sort((a, b) =>
+    a.part !== b.part ? a.part - b.part : a.createdAt - b.createdAt
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -20,7 +24,7 @@ export default async function QuestionListPage() {
 
       <div className="flex flex-wrap gap-2">
         {[5, 6, 7].map((part) => (
-          <DeletePartButton key={part} part={part} count={partCountMap.get(part) ?? 0} />
+          <DeletePartButton key={part} part={part} count={partCountMap[part] ?? 0} />
         ))}
       </div>
 

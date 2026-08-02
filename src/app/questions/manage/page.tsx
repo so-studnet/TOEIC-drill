@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
+import { getQuestionCountsByPart } from "@/lib/questions";
 import { UploadForm } from "./UploadForm";
 
+export const dynamic = "force-dynamic";
+
 export default async function QuestionsManagePage() {
-  const questionCounts = await db.question.groupBy({ by: ["part"], _count: { _all: true } });
-  const partCountMap = new Map(questionCounts.map((c) => [c.part, c._count._all]));
-  const totalQuestions = questionCounts.reduce((sum, c) => sum + c._count._all, 0);
+  const partCountMap = await getQuestionCountsByPart();
+  const totalQuestions = Object.values(partCountMap).reduce((sum, c) => sum + c, 0);
 
   return (
     <div className="flex flex-col gap-8">
@@ -19,9 +20,9 @@ export default async function QuestionsManagePage() {
       <section className="rounded-lg border border-neutral-200 bg-white p-4">
         <h2 className="mb-2 font-semibold">登録済み問題数</h2>
         <ul className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-          <li>Part5: {partCountMap.get(5) ?? 0}問</li>
-          <li>Part6: {partCountMap.get(6) ?? 0}問</li>
-          <li>Part7: {partCountMap.get(7) ?? 0}問</li>
+          <li>Part5: {partCountMap[5] ?? 0}問</li>
+          <li>Part6: {partCountMap[6] ?? 0}問</li>
+          <li>Part7: {partCountMap[7] ?? 0}問</li>
           <li className="font-semibold">合計: {totalQuestions}問</li>
         </ul>
         <Link

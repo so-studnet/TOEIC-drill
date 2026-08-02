@@ -20,15 +20,13 @@ export default async function QuizPlayPage({
     redirect(`/quiz/result?session=${sessionId}`);
   }
 
-  const order: string[] = JSON.parse(session.questionOrder);
-
   return (
     <QuizPlayer
       sessionId={sessionId}
       initialQuestion={{
         id: question.id,
         part: question.part,
-        passageText: question.passage?.text ?? null,
+        passageText: question.passageText,
         questionText: question.questionText,
         choiceA: question.choiceA,
         choiceB: question.choiceB,
@@ -36,7 +34,7 @@ export default async function QuizPlayPage({
         choiceD: question.choiceD,
       }}
       currentIndex={session.currentIndex}
-      total={order.length}
+      total={session.questionOrder.length}
     />
   );
 }

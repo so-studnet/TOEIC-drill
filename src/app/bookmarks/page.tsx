@@ -1,11 +1,10 @@
-import { db } from "@/lib/db";
+import { getAllBookmarksWithQuestions } from "@/lib/bookmarks";
 import { startBookmarkReviewSessionAction } from "@/app/quiz/actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function BookmarksPage() {
-  const bookmarks = await db.bookmark.findMany({
-    include: { question: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const bookmarks = await getAllBookmarksWithQuestions();
 
   return (
     <div className="flex flex-col gap-6">
@@ -29,7 +28,7 @@ export default async function BookmarksPage() {
           <ul className="flex flex-col gap-2">
             {bookmarks.map((b) => (
               <li
-                key={b.id}
+                key={b.questionId}
                 className="rounded-md border border-neutral-200 bg-white p-3 text-sm"
               >
                 <span className="mr-2 rounded bg-neutral-100 px-1.5 py-0.5 text-xs font-medium">

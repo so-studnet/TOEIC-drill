@@ -1,21 +1,20 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
+import { getQuestionCountsByPart } from "@/lib/questions";
 import { getInProgressSession } from "@/lib/session";
+import { getDashboardStats } from "@/lib/stats";
+
+export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [totalAnswers, correctAnswers, bookmarkCount, lastAnswer, questionCounts, inProgressSession] =
-    await Promise.all([
-      db.answerLog.count(),
-      db.answerLog.count({ where: { isCorrect: true } }),
-      db.bookmark.count(),
-      db.answerLog.findFirst({ orderBy: { answeredAt: "desc" }, select: { answeredAt: true } }),
-      db.question.groupBy({ by: ["part"], _count: { _all: true } }),
-      getInProgressSession(),
-    ]);
+  const [stats, partCountMap, inProgressSession] = await Promise.all([
+    getDashboardStats(),
+    getQuestionCountsByPart(),
+    getInProgressSession(),
+  ]);
 
+  const { totalAnswers, correctAnswers, lastAnsweredAt, bookmarkCount } = stats;
   const correctRate = totalAnswers > 0 ? Math.round((correctAnswers / totalAnswers) * 100) : null;
-  const partCountMap = new Map(questionCounts.map((c) => [c.part, c._count._all]));
-  const totalQuestions = questionCounts.reduce((sum, c) => sum + c._count._all, 0);
+  const totalQuestions = Object.values(partCountMap).reduce((sum, c) => sum + c, 0);
 
   return (
     <div className="flex flex-col gap-8">
@@ -27,7 +26,7 @@ export default async function DashboardPage() {
         <StatCard label="ブックマーク数" value={`${bookmarkCount}問`} />
         <StatCard
           label="直近の学習日"
-          value={lastAnswer ? lastAnswer.answeredAt.toLocaleDateString("ja-JP") : "-"}
+          value={lastAnsweredAt ? new Date(lastAnsweredAt).toLocaleDateString("ja-JP") : "-"}
         />
       </section>
 
@@ -39,9 +38,9 @@ export default async function DashboardPage() {
           </p>
         ) : (
           <ul className="flex gap-6 text-sm">
-            <li>Part5: {partCountMap.get(5) ?? 0}問</li>
-            <li>Part6: {partCountMap.get(6) ?? 0}問</li>
-            <li>Part7: {partCountMap.get(7) ?? 0}問</li>
+            <li>Part5: {partCountMap[5] ?? 0}問</li>
+            <li>Part6: {partCountMap[6] ?? 0}問</li>
+            <li>Part7: {partCountMap[7] ?? 0}問</li>
             <li className="font-semibold">合計: {totalQuestions}問</li>
           </ul>
         )}

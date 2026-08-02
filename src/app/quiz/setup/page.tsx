@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
+import { getQuestionCountsByPart } from "@/lib/questions";
 import { getInProgressSession } from "@/lib/session";
 import { startNormalSessionAction } from "@/app/quiz/actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function QuizSetupPage() {
-  const [questionCounts, inProgressSession] = await Promise.all([
-    db.question.groupBy({ by: ["part"], _count: { _all: true } }),
+  const [partCountMap, inProgressSession] = await Promise.all([
+    getQuestionCountsByPart(),
     getInProgressSession(),
   ]);
-  const partCountMap = new Map(questionCounts.map((c) => [c.part, c._count._all]));
-  const hasAnyQuestion = questionCounts.length > 0;
+  const hasAnyQuestion = Object.keys(partCountMap).length > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -40,7 +41,7 @@ export default async function QuizSetupPage() {
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-1 font-semibold">出題するPartを選択(複数選択可)</legend>
             {[5, 6, 7].map((part) => {
-              const count = partCountMap.get(part) ?? 0;
+              const count = partCountMap[part] ?? 0;
               return (
                 <label
                   key={part}

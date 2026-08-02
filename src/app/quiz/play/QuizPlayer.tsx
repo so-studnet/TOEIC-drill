@@ -71,7 +71,7 @@ export function QuizPlayer({
       setQuestion({
         id: next.id,
         part: next.part,
-        passageText: next.passage?.text ?? null,
+        passageText: next.passageText,
         questionText: next.questionText,
         choiceA: next.choiceA,
         choiceB: next.choiceB,

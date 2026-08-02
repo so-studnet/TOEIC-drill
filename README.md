@@ -7,6 +7,7 @@ TOEICリーディング(Part5〜7)の問題を演習できる個人学習用Web�
 - [01_requirements.md](docs/01_requirements.md) - 要件定義書
 - [02_basic_design.md](docs/02_basic_design.md) - 基本設計書
 - [03_detailed_design.md](docs/03_detailed_design.md) - 詳細設計書
+- [04_deployment.md](docs/04_deployment.md) - デプロイ
 
 ## 主な機能
 
@@ -17,14 +18,13 @@ TOEICリーディング(Part5〜7)の問題を演習できる個人学習用Web�
 
 ## 技術スタック
 
-Next.js(App Router) / TypeScript / Prisma / SQLite(better-sqlite3) / Tailwind CSS
+Next.js(App Router) / TypeScript / Firebase Realtime Database / Tailwind CSS
 
 ## セットアップ
 
 ```bash
 npm install
-cp .env.example .env
-npx prisma migrate dev
+cp .env.example .env  # FIREBASE_DATABASE_URLを自分のRealtime DatabaseのURLに書き換える
 npm run dev
 ```
 

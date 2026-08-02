@@ -41,14 +41,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-/src/generated/prisma
-
-# sqlite database (local dev data)
-*.db
-*.db-journal
-# seed data committed for Render deploys (question bank only, no personal history)
-!/prisma/seed.db
-
 # auto-generated AI agent skill docs (from `prisma init`)
 /.agents/
 /.claude/skills/

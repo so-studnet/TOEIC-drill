@@ -1,5 +1,6 @@
 import Papa from "papaparse";
-import { db } from "@/lib/db";
+import { push, ref, update } from "firebase/database";
+import { db } from "@/lib/firebase";
 
 const EXPECTED_HEADERS = [
   "part",
@@ -137,39 +138,41 @@ export function parseAndValidateCsv(csvText: string): CsvValidationResult {
 }
 
 export async function importQuestions(rows: ParsedQuestionRow[]) {
-  return db.$transaction(async (tx) => {
-    const passageIdMap = new Map<string, string>(); // csv passage_id -> db id
+  const updates: Record<string, unknown> = {};
+  const passageIdMap = new Map<string, string>(); // csv passage_id -> db id
 
-    for (const row of rows) {
-      if (row.passageId && !passageIdMap.has(row.passageId)) {
-        const passage = await tx.passage.create({
-          data: { part: row.part, text: row.passageText ?? "" },
-        });
-        passageIdMap.set(row.passageId, passage.id);
-      }
+  for (const row of rows) {
+    if (row.passageId && !passageIdMap.has(row.passageId)) {
+      const newRef = push(ref(db, "passages"));
+      const dbId = newRef.key as string;
+      passageIdMap.set(row.passageId, dbId);
+      updates[`passages/${dbId}`] = { part: row.part, text: row.passageText ?? "" };
     }
+  }
 
-    let insertedCount = 0;
-    const partCounts: Record<number, number> = {};
+  let insertedCount = 0;
+  const partCounts: Record<number, number> = {};
 
-    for (const row of rows) {
-      await tx.question.create({
-        data: {
-          part: row.part,
-          passageId: row.passageId ? passageIdMap.get(row.passageId) : null,
-          questionText: row.questionText,
-          choiceA: row.choiceA,
-          choiceB: row.choiceB,
-          choiceC: row.choiceC,
-          choiceD: row.choiceD,
-          correctAnswer: row.correctAnswer,
-          explanation: row.explanation,
-        },
-      });
-      insertedCount += 1;
-      partCounts[row.part] = (partCounts[row.part] ?? 0) + 1;
-    }
+  for (const row of rows) {
+    const newRef = push(ref(db, "questions"));
+    const dbId = newRef.key as string;
+    updates[`questions/${dbId}`] = {
+      part: row.part,
+      passageId: row.passageId ? (passageIdMap.get(row.passageId) ?? null) : null,
+      questionText: row.questionText,
+      choiceA: row.choiceA,
+      choiceB: row.choiceB,
+      choiceC: row.choiceC,
+      choiceD: row.choiceD,
+      correctAnswer: row.correctAnswer,
+      explanation: row.explanation,
+      createdAt: Date.now(),
+    };
+    insertedCount += 1;
+    partCounts[row.part] = (partCounts[row.part] ?? 0) + 1;
+  }
 
-    return { insertedCount, partCounts };
-  });
+  await update(ref(db), updates);
+
+  return { insertedCount, partCounts };
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
+import { getQuestionById } from "@/lib/questions";
 import { updateQuestionAction } from "@/app/questions/actions";
 
 export default async function QuestionEditPage({
@@ -9,7 +9,7 @@ export default async function QuestionEditPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const question = await db.question.findUnique({ where: { id }, include: { passage: true } });
+  const question = await getQuestionById(id);
   if (!question) notFound();
 
   const updateWithId = updateQuestionAction.bind(null, question.id);
@@ -32,7 +32,7 @@ export default async function QuestionEditPage({
           <span className="font-medium">長文(Part6/7のみ必須)</span>
           <textarea
             name="passageText"
-            defaultValue={question.passage?.text ?? ""}
+            defaultValue={question.passageText ?? ""}
             rows={5}
             className="rounded-md border border-neutral-300 p-2"
           />

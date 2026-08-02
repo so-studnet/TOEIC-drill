@@ -6,15 +6,11 @@ runConfig:
   maxInstances: 1
 
 scripts:
-  buildCommand: npm install && npx prisma generate && npm run build
+  buildCommand: npm install && npm run build
   runCommand: npm start
 
 env:
-  - variable: DATABASE_URL
-    value: file:./dev.db
-    availability:
-      - RUNTIME
-  - variable: SEED_ON_BOOT
-    value: "true"
+  - variable: FIREBASE_DATABASE_URL
+    value: https://toeic-drill-default-rtdb.asia-southeast1.firebasedatabase.app/
     availability:
       - RUNTIME
