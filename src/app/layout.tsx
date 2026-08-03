@@ -38,6 +38,12 @@ export default function RootLayout({
             <Link href="/" className="whitespace-nowrap font-semibold text-lg">
               TOEIC-drill
             </Link>
+            <span
+              className="whitespace-nowrap text-xs text-neutral-400"
+              title="デプロイされているコミットハッシュ"
+            >
+              v{process.env.NEXT_PUBLIC_COMMIT_SHA ?? "unknown"}
+            </span>
             <Link
               href="/quiz/setup"
               className="whitespace-nowrap py-1 text-sm text-neutral-600 hover:text-neutral-900"
